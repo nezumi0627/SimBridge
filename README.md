@@ -42,8 +42,8 @@ Configure this secret in the caller repository or organization:
 
 - `TAILSCALE_AUTHKEY`
 
-The OAuth client must be allowed to create ephemeral devices and use a tag
-accepted by the tailnet ACL. The runner is not an internet-facing server;
+The auth key must use the `tag:simbridge` identity. The runner is not an
+internet-facing server;
 access is intended to be through Tailscale only.
 
 ## Local repository mode

@@ -5,14 +5,14 @@ an ephemeral macOS runner in your tailnet. It must be tagged for SimBridge.
 
 ## Create the credential
 
-1. Open the Tailscale admin console's [Trust credentials](https://login.tailscale.com/admin/settings/keys) page.
-2. Choose **Credential** → **OAuth**.
-3. In **Access controls**, create the tag `tag:simbridge` if it does not yet
+1. Open the Tailscale admin console's [Access controls](https://login.tailscale.com/admin/acls) page.
+2. Create the tag `tag:simbridge` if it does not yet
    exist. The tag owner can be `autogroup:admin`.
-4. In **Keys**, generate a new auth key with the `simbridge` tag, **Reusable**
+3. Open [Keys](https://login.tailscale.com/admin/settings/keys) and generate a
+   new auth key with the `simbridge` tag, **Reusable**
    enabled, **Ephemeral** enabled, and **Preauthorized** enabled if your
    tailnet uses device approval.
-5. Copy the new auth key immediately.
+4. Copy the new auth key immediately.
 
 The account creating it must have sufficient tailnet administration rights.
 The secret is case-sensitive and must never be committed or pasted into chat.
