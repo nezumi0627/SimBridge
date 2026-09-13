@@ -60,7 +60,7 @@ Implemented in v0.1 foundation:
 - simulator selection/creation and headless boot
 - Xcode workspace/project build
 - app installation and launch
-- pinned Baguette source ref
+- pinned Baguette source ref (`v0.1.97` by default)
 - Tailscale connection using ephemeral-node credentials
 - bounded session lifetime and failure classification
 - screenshot and logs as Actions artifacts

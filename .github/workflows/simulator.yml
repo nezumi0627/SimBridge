@@ -40,7 +40,7 @@ on:
       baguette-ref:
         description: Reviewed Baguette tag or commit
         required: false
-        default: '0.1.72'
+        default: 'v0.1.97'
         type: string
 
   workflow_call:
@@ -74,7 +74,7 @@ on:
         type: string
       baguette-ref:
         required: false
-        default: '0.1.72'
+        default: 'v0.1.97'
         type: string
     secrets:
       TAILSCALE_AUTHKEY:
@@ -98,7 +98,7 @@ jobs:
       SCHEME: ${{ inputs.scheme }}
       CONFIGURATION: ${{ inputs.configuration || 'Debug' }}
       SESSION_TIMEOUT: ${{ inputs.session-timeout-minutes || '60' }}
-      BAGUETTE_REF: ${{ inputs.baguette-ref || '0.1.72' }}
+      BAGUETTE_REF: ${{ inputs.baguette-ref || 'v0.1.97' }}
       FPS: ${{ inputs.fps || '30' }}
     steps:
       - name: Check out source
