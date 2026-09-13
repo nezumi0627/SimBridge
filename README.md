@@ -71,5 +71,18 @@ dedicated Windows CLI and SimBridge UI are planned for later milestones.
 For the exact Tailscale credential steps, see
 [docs/NETWORKING.md](docs/NETWORKING.md).
 
+## Run the included example
+
+The repository includes a small SwiftUI app so the workflow can be tested
+without another iOS repository. Run `SimBridge simulator` manually with:
+
+```text
+scheme: SimBridgeExample
+device: iPhone 17 Pro
+runtime: iOS 26
+```
+
+After the build succeeds, open the Baguette URL shown in the job summary.
+
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the decisions and
 boundaries of the MVP.
