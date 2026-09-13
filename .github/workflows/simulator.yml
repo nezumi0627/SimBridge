@@ -77,9 +77,7 @@ on:
         default: '0.1.72'
         type: string
     secrets:
-      TS_OAUTH_CLIENT_ID:
-        required: true
-      TS_OAUTH_SECRET:
+      TAILSCALE_AUTHKEY:
         required: true
 
 permissions:
@@ -117,9 +115,7 @@ jobs:
       - name: Connect Tailscale ephemeral node
         uses: tailscale/github-action@v4
         with:
-          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
-          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
-          tags: tag:simbridge
+          authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
 
       - name: Resolve tailnet endpoint
         run: |

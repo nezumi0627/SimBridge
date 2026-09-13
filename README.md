@@ -38,10 +38,9 @@ jobs:
     secrets: inherit
 ```
 
-Configure these secrets in the caller repository or organization:
+Configure this secret in the caller repository or organization:
 
-- `TS_OAUTH_CLIENT_ID`
-- `TS_OAUTH_SECRET`
+- `TAILSCALE_AUTHKEY`
 
 The OAuth client must be allowed to create ephemeral devices and use a tag
 accepted by the tailnet ACL. The runner is not an internet-facing server;
