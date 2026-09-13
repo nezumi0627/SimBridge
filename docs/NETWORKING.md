@@ -8,8 +8,7 @@ an ephemeral macOS runner in your tailnet.
 
 1. Open the Tailscale admin console's [Trust credentials](https://login.tailscale.com/admin/settings/keys) page.
 2. Choose **Credential** → **OAuth**.
-3. Grant the device-management scope required by the GitHub Action and allow
-   the tag `tag:simbridge`.
+3. Grant the `auth_keys` scope and allow the tag `tag:simbridge`.
 4. Generate the credential.
 5. Copy the client ID and secret immediately. Tailscale does not show the
    secret again after leaving the creation page.
