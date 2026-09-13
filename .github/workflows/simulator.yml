@@ -90,6 +90,7 @@ concurrency:
 jobs:
   simulator:
     runs-on: macos-26
+    environment: TAILSCALE_AUTHKEY
     timeout-minutes: 360
     env:
       DEVICE_NAME: ${{ inputs.device || 'iPhone 17 Pro' }}
