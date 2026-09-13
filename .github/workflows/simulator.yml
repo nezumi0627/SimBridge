@@ -1,0 +1,216 @@
+name: SimBridge simulator
+
+on:
+  workflow_dispatch:
+    inputs:
+      scheme:
+        description: Xcode scheme to build
+        required: true
+        type: string
+      device:
+        description: Simulator model name
+        required: false
+        default: iPhone 17 Pro
+        type: string
+      runtime:
+        description: Simulator runtime name
+        required: false
+        default: iOS 26
+        type: string
+      configuration:
+        description: Xcode build configuration
+        required: false
+        default: Debug
+        type: string
+      ref:
+        description: Repository ref to check out
+        required: false
+        default: main
+        type: string
+      fps:
+        description: Baguette stream frame rate
+        required: false
+        default: '30'
+        type: string
+      session-timeout-minutes:
+        description: Maximum interactive session length
+        required: false
+        default: '60'
+        type: string
+      baguette-ref:
+        description: Reviewed Baguette tag or commit
+        required: false
+        default: '0.1.72'
+        type: string
+
+  workflow_call:
+    inputs:
+      scheme:
+        required: true
+        type: string
+      device:
+        required: false
+        default: iPhone 17 Pro
+        type: string
+      runtime:
+        required: false
+        default: iOS 26
+        type: string
+      configuration:
+        required: false
+        default: Debug
+        type: string
+      ref:
+        required: false
+        default: main
+        type: string
+      fps:
+        required: false
+        default: '30'
+        type: string
+      session-timeout-minutes:
+        required: false
+        default: '60'
+        type: string
+      baguette-ref:
+        required: false
+        default: '0.1.72'
+        type: string
+    secrets:
+      TS_OAUTH_CLIENT_ID:
+        required: true
+      TS_OAUTH_SECRET:
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: simbridge-${{ github.repository }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  simulator:
+    runs-on: macos-26
+    timeout-minutes: 360
+    env:
+      DEVICE_NAME: ${{ inputs.device || 'iPhone 17 Pro' }}
+      RUNTIME_NAME: ${{ inputs.runtime || 'iOS 26' }}
+      SCHEME: ${{ inputs.scheme }}
+      CONFIGURATION: ${{ inputs.configuration || 'Debug' }}
+      SESSION_TIMEOUT: ${{ inputs.session-timeout-minutes || '60' }}
+      BAGUETTE_REF: ${{ inputs.baguette-ref || '0.1.72' }}
+      FPS: ${{ inputs.fps || '30' }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || 'main' }}
+
+      - name: Check Xcode and runner
+        run: |
+          set -euo pipefail
+          test "$(uname -m)" = arm64
+          xcodebuild -version
+          xcrun simctl list runtimes
+
+      - name: Connect Tailscale ephemeral node
+        uses: tailscale/github-action@v3
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:simbridge
+
+      - name: Install pinned Baguette
+        run: |
+          set -euo pipefail
+          git clone --depth 1 --branch "$BAGUETTE_REF" https://github.com/tddworks/baguette.git "$RUNNER_TEMP/baguette"
+          make -C "$RUNNER_TEMP/baguette"
+          mkdir -p "$HOME/bin"
+          install -m 0755 "$RUNNER_TEMP/baguette/.build/release/baguette" "$HOME/bin/baguette"
+          echo "$HOME/bin" >> "$GITHUB_PATH"
+
+      - name: Select and boot simulator
+        id: simulator
+        run: |
+          set -euo pipefail
+          RUNTIME_ID="$(xcrun simctl list runtimes | sed -n "s/^.*${RUNTIME_NAME}.*(\(com.apple.CoreSimulator.SimRuntime.[^)]*\)).*$/\1/p" | head -n 1)"
+          test -n "$RUNTIME_ID" || { echo 'SIMULATOR_BOOT_FAILED: runtime not found' >&2; exit 1; }
+          UDID="$(xcrun simctl list devices available | sed -n "s/^.*${DEVICE_NAME} ([A-F0-9-]*) (Shutdown).*$/\1/p" | head -n 1)"
+          if [ -z "$UDID" ]; then
+            DEVICE_TYPE_ID="$(xcrun simctl list devicetypes | sed -n "s/^${DEVICE_NAME} (\(com.apple.CoreSimulator.SimDeviceType.[^)]*\)).*$/\1/p" | head -n 1)"
+            test -n "$DEVICE_TYPE_ID" || { echo 'SIMULATOR_BOOT_FAILED: device type not found' >&2; exit 1; }
+            UDID="$(xcrun simctl create "${DEVICE_NAME} (SimBridge)" "$DEVICE_TYPE_ID" "$RUNTIME_ID")"
+          fi
+          baguette boot --udid "$UDID"
+          echo "udid=$UDID" >> "$GITHUB_OUTPUT"
+          echo "SIMULATOR_UDID=$UDID" >> "$GITHUB_ENV"
+
+      - name: Build iOS app
+        run: |
+          set -o pipefail
+          APP_CONTAINER="$(mktemp -d)"
+          if [ -f *.xcworkspace/contents.xcworkspacedata ]; then
+            PROJECT_ARGS=(-workspace "$(find . -maxdepth 1 -name '*.xcworkspace' -print -quit)")
+          else
+            PROJECT_ARGS=(-project "$(find . -maxdepth 1 -name '*.xcodeproj' -print -quit)")
+          fi
+          test -n "${PROJECT_ARGS[1]}" || { echo 'XCODE_BUILD_FAILED: no workspace or project found' >&2; exit 1; }
+          xcodebuild "${PROJECT_ARGS[@]}" -scheme "$SCHEME" -configuration "$CONFIGURATION" -sdk iphonesimulator -destination "platform=iOS Simulator,id=$SIMULATOR_UDID" -derivedDataPath "$APP_CONTAINER/DerivedData" build 2>&1 | tee "$RUNNER_TEMP/build.log"
+          APP_PATH="$(find "$APP_CONTAINER/DerivedData/Build/Products" -type d -name '*.app' -path "*/${CONFIGURATION}-iphonesimulator/*" -print -quit)"
+          test -n "$APP_PATH" || { echo 'XCODE_BUILD_FAILED: .app not found' >&2; exit 1; }
+          echo "APP_PATH=$APP_PATH" >> "$GITHUB_ENV"
+
+      - name: Install and launch app
+        run: |
+          set -euo pipefail
+          BUNDLE_ID="$(/usr/libexec/PlistBuddy -c 'Print:CFBundleIdentifier' "$APP_PATH/Info.plist")"
+          xcrun simctl install "$SIMULATOR_UDID" "$APP_PATH"
+          xcrun simctl launch "$SIMULATOR_UDID" "$BUNDLE_ID"
+          echo "BUNDLE_ID=$BUNDLE_ID" >> "$GITHUB_ENV"
+
+      - name: Start Baguette
+        run: |
+          set -euo pipefail
+          baguette serve --host 0.0.0.0 --port 8421 --allowed-hosts '*.ts.net' > "$RUNNER_TEMP/baguette.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/baguette.pid"
+          sleep 3
+          curl --fail --silent http://127.0.0.1:8421/simulators.json > "$RUNNER_TEMP/ready.json"
+          echo "Baguette is ready on the tailnet; inspect the runner's Tailscale hostname in the job log." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Keep session alive
+        run: |
+          set -euo pipefail
+          case "$SESSION_TIMEOUT" in (*[!0-9]*|'') echo 'SESSION_TIMEOUT must be a positive integer' >&2; exit 1;; esac
+          test "$SESSION_TIMEOUT" -gt 0
+          sleep "$((SESSION_TIMEOUT * 60))"
+
+      - name: Capture session artifacts
+        if: always()
+        run: |
+          mkdir -p artifacts/screenshots artifacts/logs
+          if [ -n "${SIMULATOR_UDID:-}" ]; then
+            baguette screenshot --udid "$SIMULATOR_UDID" --output artifacts/screenshots/final.png || true
+            baguette logs --udid "$SIMULATOR_UDID" --style compact > artifacts/logs/simulator.log 2>&1 &
+            LOG_PID=$!
+            sleep 2
+            kill "$LOG_PID" 2>/dev/null || true
+          fi
+          cp "$RUNNER_TEMP/build.log" artifacts/logs/build.log 2>/dev/null || true
+          cp "$RUNNER_TEMP/baguette.log" artifacts/logs/baguette.log 2>/dev/null || true
+          printf '{"status":"%s","udid":"%s"}\n' "${{ job.status }}" "${SIMULATOR_UDID:-}" > artifacts/session.json
+
+      - name: Upload session artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: simbridge-session-${{ github.run_id }}
+          path: artifacts
+          if-no-files-found: warn
+
+      - name: Cleanup
+        if: always()
+        run: |
+          set +e
+          if [ -f "$RUNNER_TEMP/baguette.pid" ]; then kill "$(cat "$RUNNER_TEMP/baguette.pid")" 2>/dev/null; fi
+          if [ -n "${SIMULATOR_UDID:-}" ]; then xcrun simctl shutdown "$SIMULATOR_UDID"; fi
