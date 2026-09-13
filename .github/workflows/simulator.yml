@@ -121,6 +121,16 @@ jobs:
           oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
           tags: tag:simbridge
 
+      - name: Resolve tailnet endpoint
+        run: |
+          set -euo pipefail
+          TAILSCALE_HOSTNAME="$(tailscale status --json | jq -r '.Self.DNSName' | sed 's/\.$//')"
+          TAILSCALE_IP="$(tailscale ip -4 | head -n 1)"
+          test -n "$TAILSCALE_HOSTNAME" || { echo 'NETWORK_FAILED: Tailscale hostname unavailable' >&2; exit 1; }
+          test -n "$TAILSCALE_IP" || { echo 'NETWORK_FAILED: Tailscale IPv4 unavailable' >&2; exit 1; }
+          echo "TAILSCALE_HOSTNAME=$TAILSCALE_HOSTNAME" >> "$GITHUB_ENV"
+          echo "TAILSCALE_IP=$TAILSCALE_IP" >> "$GITHUB_ENV"
+
       - name: Install pinned Baguette
         run: |
           set -euo pipefail
@@ -172,11 +182,18 @@ jobs:
       - name: Start Baguette
         run: |
           set -euo pipefail
-          baguette serve --host 0.0.0.0 --port 8421 --allowed-hosts '*.ts.net' > "$RUNNER_TEMP/baguette.log" 2>&1 &
+          baguette serve --host 0.0.0.0 --port 8421 --allowed-hosts "$TAILSCALE_HOSTNAME" > "$RUNNER_TEMP/baguette.log" 2>&1 &
           echo $! > "$RUNNER_TEMP/baguette.pid"
           sleep 3
           curl --fail --silent http://127.0.0.1:8421/simulators.json > "$RUNNER_TEMP/ready.json"
-          echo "Baguette is ready on the tailnet; inspect the runner's Tailscale hostname in the job log." >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "## SimBridge ready"
+            echo
+            echo "Open: [Baguette Simulator UI](http://${TAILSCALE_HOSTNAME}:8421/simulators)"
+            echo
+            echo "Tailnet IP: \`$TAILSCALE_IP\`"
+            echo "Requested stream FPS: \`$FPS\`"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Keep session alive
         run: |
@@ -198,7 +215,7 @@ jobs:
           fi
           cp "$RUNNER_TEMP/build.log" artifacts/logs/build.log 2>/dev/null || true
           cp "$RUNNER_TEMP/baguette.log" artifacts/logs/baguette.log 2>/dev/null || true
-          printf '{"status":"%s","udid":"%s"}\n' "${{ job.status }}" "${SIMULATOR_UDID:-}" > artifacts/session.json
+          printf '{"status":"%s","udid":"%s","hostname":"%s"}\n' "${{ job.status }}" "${SIMULATOR_UDID:-}" "${TAILSCALE_HOSTNAME:-}" > artifacts/session.json
 
       - name: Upload session artifacts
         if: always()

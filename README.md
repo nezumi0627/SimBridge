@@ -69,5 +69,8 @@ Implemented in v0.1 foundation:
 The browser UI is currently Baguette’s UI at the Tailscale hostname. A
 dedicated Windows CLI and SimBridge UI are planned for later milestones.
 
+For the exact Tailscale credential steps, see
+[docs/NETWORKING.md](docs/NETWORKING.md).
+
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the decisions and
 boundaries of the MVP.

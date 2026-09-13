@@ -19,6 +19,10 @@ runner is deliberately not treated as persistent infrastructure. A session
 must end before the workflow timeout and its cleanup runs regardless of the
 failure stage.
 
+When Baguette is ready, the workflow resolves the runner's MagicDNS hostname
+and publishes a tailnet-only HTTP URL in the Actions job summary. The URL is
+intentionally not exposed through a public tunnel.
+
 ## Reusable workflow contract
 
 Required input: `scheme`.
