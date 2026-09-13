@@ -141,7 +141,7 @@ jobs:
         id: simulator
         run: |
           set -euo pipefail
-          RUNTIME_ID="$(xcrun simctl list runtimes | sed -n "s/^.*${RUNTIME_NAME}.*(\(com.apple.CoreSimulator.SimRuntime.[^)]*\)).*$/\1/p" | head -n 1)"
+          RUNTIME_ID="$(xcrun simctl list runtimes | awk -v name="$RUNTIME_NAME" '$0 ~ name && $0 ~ /com.apple.CoreSimulator.SimRuntime/ { for (i = 1; i <= NF; i++) if ($i ~ /^com.apple.CoreSimulator.SimRuntime/) { print $i; exit } }')"
           test -n "$RUNTIME_ID" || { echo 'SIMULATOR_BOOT_FAILED: runtime not found' >&2; exit 1; }
           UDID="$(xcrun simctl list devices available | sed -n "s/^.*${DEVICE_NAME} ([A-F0-9-]*) (Shutdown).*$/\1/p" | head -n 1)"
           if [ -z "$UDID" ]; then
